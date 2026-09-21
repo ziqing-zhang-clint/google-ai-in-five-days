@@ -1,0 +1,122 @@
+{
+  "terraform": {
+    "required_version": ">= 1.5.0",
+    "required_providers": {
+      "google": {
+        "source": "hashicorp/google",
+        "version": "~> 5.20.0"
+      }
+    }
+  },
+  "provider": {
+    "google": {
+      "project": "${var.project_id}",
+      "region": "${var.region}"
+    }
+  },
+  "resource": {
+    "google_service_account": {
+      "nexus_agent_sa": {
+        "account_id": "nexus-ops-agent-sa",
+        "display_name": "NexusOps Multi-Agent Runtime Service Account",
+        "description": "Dedicated identity for NexusOps Cloud Run execution and tool operations"
+      }
+    },
+    "google_project_iam_member": {
+      "trace_agent": {
+        "project": "${var.project_id}",
+        "role": "roles/cloudtrace.agent",
+        "member": "serviceAccount:${google_service_account.nexus_agent_sa.email}"
+      },
+      "log_writer": {
+        "project": "${var.project_id}",
+        "role": "roles/logging.logWriter",
+        "member": "serviceAccount:${google_service_account.nexus_agent_sa.email}"
+      },
+      "vertex_ai_user": {
+        "project": "${var.project_id}",
+        "role": "roles/aiplatform.user",
+        "member": "serviceAccount:${google_service_account.nexus_agent_sa.email}"
+      }
+    },
+    "google_secret_manager_secret": {
+      "gemini_api_key_secret": {
+        "secret_id": "nexus-gemini-api-key",
+        "replication": {
+          "auto": {}
+        },
+        "labels": {
+          "environment": "${var.environment}",
+          "app": "nexus-enterprise-ops-agent"
+        }
+      }
+    },
+    "google_cloud_run_v2_service": {
+      "nexus_service": {
+        "name": "nexus-enterprise-ops-agent",
+        "location": "${var.region}",
+        "ingress": "INGRESS_TRAFFIC_ALL",
+        "template": {
+          "service_account": "${google_service_account.nexus_agent_sa.email}",
+          "scaling": {
+            "min_instance_count": 1,
+            "max_instance_count": 10
+          },
+          "containers": [
+            {
+              "image": "${var.container_image}",
+              "resources": {
+                "limits": {
+                  "cpu": "2000m",
+                  "memory": "2Gi"
+                }
+              },
+              "ports": {
+                "container_port": 8000
+              },
+              "env": [
+                {
+                  "name": "ENVIRONMENT",
+                  "value": "${var.environment}"
+                },
+                {
+                  "name": "LOG_LEVEL",
+                  "value": "INFO"
+                },
+                {
+                  "name": "NEXUS_FRONTIER_MODEL",
+                  "value": "gemini-2.5-pro"
+                },
+                {
+                  "name": "NEXUS_FAST_MODEL",
+                  "value": "gemini-2.5-flash"
+                },
+                {
+                  "name": "HITL_MANDATORY_THRESHOLD_USD",
+                  "value": "250.00"
+                },
+                {
+                  "name": "OTEL_SERVICE_NAME",
+                  "value": "nexus-enterprise-ops-agent"
+                },
+                {
+                  "name": "OTEL_TRACES_ENABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "GEMINI_API_KEY",
+                  "value_source": {
+                    "secret_key_ref": {
+                      "secret": "${google_secret_manager_secret.gemini_api_key_secret.secret_id}",
+                      "version": "latest"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
