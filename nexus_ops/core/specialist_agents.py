@@ -5,6 +5,11 @@ from nexus_ops.tools.order_db_tool import lookup_order_details, update_order_sta
 from nexus_ops.tools.carrier_logistics_tool import track_carrier_shipment, open_carrier_investigation
 from nexus_ops.tools.payment_gateway_tool import lookup_payment_details, execute_order_refund
 from nexus_ops.tools.policy_engine_tool import evaluate_dispute_policy
+from nexus_ops.core.constitutions import (
+    LOGISTICS_SPECIALIST_CONSTITUTION,
+    BILLING_SPECIALIST_CONSTITUTION,
+    POLICY_COMPLIANCE_CONSTITUTION
+)
 from nexus_ops.observability.otel_tracer import otel_tracer
 from nexus_ops.observability.structured_logger import logger
 from nexus_ops.observability.metrics import metrics
@@ -14,6 +19,7 @@ class LogisticsSpecialistAgent:
     """Specialist sub-agent governing shipment routing, carrier tracing, and transit delays."""
 
     name = "specialist:logistics"
+    constitution = LOGISTICS_SPECIALIST_CONSTITUTION
 
     def investigate(self, order_id: str) -> Dict[str, Any]:
         with otel_tracer.trace_tool_execution(f"{self.name}.investigate", {"order_id": order_id}):
@@ -58,6 +64,7 @@ class BillingSpecialistAgent:
     """Specialist sub-agent governing financial transactions, dispute ledgering, and refund execution."""
 
     name = "specialist:billing"
+    constitution = BILLING_SPECIALIST_CONSTITUTION
 
     def resolve_dispute(
         self,
@@ -128,6 +135,7 @@ class PolicyComplianceAgent:
     """Specialist sub-agent ensuring enterprise SLA guarantees and contract alignment."""
 
     name = "specialist:compliance"
+    constitution = POLICY_COMPLIANCE_CONSTITUTION
 
     def check_sla(self, customer_id: str, order_id: str, category: str) -> Dict[str, Any]:
         with otel_tracer.trace_tool_execution(f"{self.name}.check_sla", {"customer_id": customer_id}):

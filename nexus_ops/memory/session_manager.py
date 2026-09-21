@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+import asyncio
 import json
 import sqlite3
 from pydantic import BaseModel, Field
@@ -106,6 +107,14 @@ class SessionManager:
             ))
             conn.commit()
 
+    async def get_or_create_session_async(self, session_id: str, user_id: str) -> SessionState:
+        """Asynchronously retrieves an existing session or initializes a new one without blocking UI."""
+        return await asyncio.to_thread(self.get_or_create_session, session_id, user_id)
+
+    async def save_session_async(self, session: SessionState) -> None:
+        """Asynchronously persists session state without blocking the event loop."""
+        await asyncio.to_thread(self.save_session, session)
+
     def append_turn(
         self,
         session_id: str,
@@ -125,5 +134,16 @@ class SessionManager:
         self.save_session(session)
         return turn
 
+    async def append_turn_async(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> MessageTurn:
+        """Asynchronously appends a new conversational turn and updates session."""
+        return await asyncio.to_thread(self.append_turn, session_id, role, content, metadata)
+
 
 session_manager = SessionManager()
+

@@ -171,3 +171,53 @@ def test_triage_coordinator_hitl_high_value_escalation():
     assert res["status"] == "ESCALATED_HITL"
     assert res["escalated_to_hitl"] is True
     assert "Human-In-The-Loop" in res["final_response"]
+
+
+def test_strategic_model_router_complexity():
+    from nexus_ops.core.model_router import model_router
+
+    # Simple lookup -> LIGHTWEIGHT tier (gemini-2.5-flash)
+    decision_simple = model_router.evaluate_complexity("Where is ORD-901?", customer_tier="STANDARD")
+    assert decision_simple.tier == "LIGHTWEIGHT"
+    assert "gemini-2.5-flash" in decision_simple.selected_model
+    assert decision_simple.complexity_score < 0.50
+
+    # Complex multi-intent high-value dispute -> FRONTIER tier (gemini-2.5-pro)
+    decision_complex = model_router.evaluate_complexity(
+        "Package delayed past SLA, demanding a $300 refund and compensation.",
+        customer_tier="ENTERPRISE",
+        turn_count=5
+    )
+    assert decision_complex.tier == "FRONTIER"
+    assert "gemini-2.5-pro" in decision_complex.selected_model
+    assert decision_complex.complexity_score >= 0.50
+
+
+def test_agent_constitutions_attached():
+    from nexus_ops.core.orchestrator import orchestrator
+    from nexus_ops.core.specialist_agents import logistics_specialist, billing_specialist, compliance_specialist
+
+    assert hasattr(orchestrator, "constitution")
+    assert "NexusOps Triage Coordinator" in orchestrator.constitution
+
+    assert hasattr(logistics_specialist, "constitution")
+    assert "Logistics Specialist" in logistics_specialist.constitution
+
+    assert hasattr(billing_specialist, "constitution")
+    assert "Billing and Financial Specialist" in billing_specialist.constitution
+
+    assert hasattr(compliance_specialist, "constitution")
+    assert "Policy Compliance Specialist" in compliance_specialist.constitution
+
+
+def test_orchestrator_returns_routing_decision():
+    orchestrator = TriageCoordinatorAgent()
+    res = orchestrator.process_request(
+        user_prompt="Status for ORD-901",
+        session_id="test-routing-sess",
+        user_id="CUST-001"
+    )
+    assert "selected_model" in res
+    assert "routing_decision" in res
+    assert res["routing_decision"]["tier"] in ["LIGHTWEIGHT", "FRONTIER"]
+

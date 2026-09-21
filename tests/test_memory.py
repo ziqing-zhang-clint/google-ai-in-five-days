@@ -152,3 +152,30 @@ def test_context_compactor_above_threshold():
     assert "Consulting enterprise policy engine." in payload[2]["content"]
     assert payload[3]["role"] == "user"
     assert "Can I get a refund or reshipment?" in payload[3]["content"]
+
+
+@pytest.mark.asyncio
+async def test_session_manager_async_operations(temp_session_manager):
+    # Async get or create
+    session = await temp_session_manager.get_or_create_session_async("sess-async-001", "user-async")
+    assert session.session_id == "sess-async-001"
+    assert len(session.turns) == 0
+
+    # Async append turn
+    turn = await temp_session_manager.append_turn_async(
+        "sess-async-001", "user", "Asynchronous non-blocking message"
+    )
+    assert turn.role == "user"
+    assert turn.content == "Asynchronous non-blocking message"
+
+    # Reload and update active_order_id async
+    session = await temp_session_manager.get_or_create_session_async("sess-async-001", "user-async")
+    session.active_order_id = "ORD-ASYNC-999"
+    await temp_session_manager.save_session_async(session)
+
+    # Reload async and verify persistence
+    reloaded = await temp_session_manager.get_or_create_session_async("sess-async-001", "user-async")
+    assert reloaded.active_order_id == "ORD-ASYNC-999"
+    assert len(reloaded.turns) == 1
+    assert reloaded.turns[0].content == "Asynchronous non-blocking message"
+

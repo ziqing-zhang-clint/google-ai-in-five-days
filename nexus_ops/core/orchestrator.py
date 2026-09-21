@@ -11,6 +11,8 @@ from nexus_ops.tools.notification_tool import dispatch_customer_notification
 from nexus_ops.core.specialist_agents import logistics_specialist, billing_specialist, compliance_specialist
 from nexus_ops.core.guardrails import guardrails
 from nexus_ops.core.state_machine import state_machine, CircuitBreakerError
+from nexus_ops.core.constitutions import TRIAGE_COORDINATOR_CONSTITUTION
+from nexus_ops.core.model_router import model_router
 from nexus_ops.memory.session_manager import session_manager, MessageTurn
 from nexus_ops.memory.tiered_memory import tiered_memory
 from nexus_ops.memory.context_compactor import context_compactor
@@ -25,6 +27,7 @@ class TriageCoordinatorAgent:
     def __init__(self, model_name: str = settings.frontier_model):
         self.name = "coordinator:triage_master"
         self.model_name = model_name
+        self.constitution = TRIAGE_COORDINATOR_CONSTITUTION
 
     def process_request(
         self,
@@ -74,6 +77,15 @@ class TriageCoordinatorAgent:
         compacted_history, was_compacted = context_compactor.compact_turns(session.turns)
         if was_compacted:
             logger.info(f"[{run_id}] Context compacted to mitigate Context Rot.")
+
+        # Strategic Model Routing: Dynamically evaluate task complexity
+        routing_decision = model_router.evaluate_complexity(
+            user_prompt=user_prompt,
+            customer_tier=session.customer_tier,
+            turn_count=len(session.turns)
+        )
+        selected_model = routing_decision.selected_model
+        logger.info(f"[{run_id}] Executing with dynamically routed model: {selected_model} ({routing_decision.tier})")
 
         # Step 3: Entity Extraction & Intent Classification
         order_match = re.search(r"ORD-[\w-]+", user_prompt, re.IGNORECASE)
@@ -212,6 +224,8 @@ class TriageCoordinatorAgent:
             "user_id": user_id,
             "active_order_id": order_id,
             "status": "COMPLETED" if not hitl_escalation else "ESCALATED_HITL",
+            "selected_model": selected_model,
+            "routing_decision": routing_decision.model_dump(),
             "final_response": final_response_text,
             "actions_taken": actions_taken,
             "escalated_to_hitl": hitl_escalation

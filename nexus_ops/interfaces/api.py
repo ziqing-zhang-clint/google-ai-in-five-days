@@ -37,6 +37,8 @@ class ChatResponse(BaseModel):
     user_id: Optional[str] = None
     active_order_id: Optional[str] = None
     status: str
+    selected_model: Optional[str] = None
+    routing_decision: Optional[Dict[str, Any]] = None
     final_response: str
     actions_taken: List[Dict[str, Any]]
     escalated_to_hitl: bool
@@ -74,9 +76,9 @@ def process_chat(request: ChatRequest):
 
 
 @app.get("/api/v1/sessions/{session_id}", tags=["Sessions & Memory"])
-def get_session(session_id: str):
-    """Retrieves conversation history and state variables for a session."""
-    session = session_manager.get_or_create_session(session_id, user_id="anonymous")
+async def get_session(session_id: str):
+    """Retrieves conversation history and state variables for a session asynchronously."""
+    session = await session_manager.get_or_create_session_async(session_id, user_id="anonymous")
     return session.model_dump()
 
 

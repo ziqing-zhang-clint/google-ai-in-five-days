@@ -1,0 +1,7 @@
+# Example Terraform Variables for NexusOps
+project_id                   = "my-google-cloud-project-id"
+region                       = "us-central1"
+environment                  = "production"
+container_image              = "gcr.io/my-google-cloud-project-id/nexus-enterprise-ops-agent:latest"
+gemini_api_key               = "AIzaSy..."
+hitl_mandatory_threshold_usd = 250.0
