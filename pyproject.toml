@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-enterprise-ops-agent"
+version = "1.0.0"
+description = "Enterprise Operations & Dispute Intelligence Multi-Agent System built with Google ADK"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Clint Zhang", email = "ziqing.zhang.clint@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "google-adk>=1.18.0",
+    "google-genai>=1.47.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "opentelemetry-api>=1.24.0",
+    "opentelemetry-sdk>=1.24.0",
+    "opentelemetry-semantic-conventions>=0.45b0",
+    "rich>=13.7.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "black>=24.2.0",
+]
+
+[project.scripts]
+nexus-cli = "nexus_ops.interfaces.cli:main"
+nexus-api = "nexus_ops.interfaces.api:start"
+nexus-eval = "evals.run_evals:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --durations=5"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
