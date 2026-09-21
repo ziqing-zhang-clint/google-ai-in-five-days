@@ -7,6 +7,7 @@ import json
 import sqlite3
 from pydantic import BaseModel, Field
 from nexus_ops.config import settings
+from nexus_ops.observability.pii_redactor import pii_redactor
 
 
 class MessageTurn(BaseModel):
@@ -83,10 +84,19 @@ class SessionManager:
         return new_session
 
     def save_session(self, session: SessionState):
-        """Persists the session state to database."""
+        """Persists the session state to database with PII redaction before storage."""
         session.updated_at = datetime.utcnow().isoformat()
-        turns_json = json.dumps([t.model_dump() for t in session.turns])
-        vars_json = json.dumps(session.variables)
+        sanitized_turns = [
+            {
+                "role": t.role,
+                "content": pii_redactor.redact(t.content),
+                "timestamp": t.timestamp,
+                "metadata": pii_redactor.redact_data(t.metadata)
+            }
+            for t in session.turns
+        ]
+        turns_json = json.dumps(sanitized_turns)
+        vars_json = json.dumps(pii_redactor.redact_data(session.variables))
 
         with self._get_conn() as conn:
             conn.execute("""

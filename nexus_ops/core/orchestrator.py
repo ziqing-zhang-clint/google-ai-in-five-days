@@ -54,6 +54,14 @@ class TriageCoordinatorAgent:
         # Step 1: Perceive & Security Guardrail
         is_safe, security_error = guardrails.validate_user_input(user_prompt)
         if not is_safe:
+            logger.log_intent_vs_outcome(
+                planned_intent="SECURITY_SCAN",
+                actual_outcome="SECURITY_REJECTED",
+                intent_satisfied=False,
+                discrepancy_reason=security_error,
+                session_id=session_id,
+                run_id=run_id
+            )
             return {
                 "run_id": run_id,
                 "session_id": session_id,
@@ -193,6 +201,14 @@ class TriageCoordinatorAgent:
                         final_response_text = order_info.get("error_message", "Order not found.")
 
         except CircuitBreakerError as e:
+            logger.log_intent_vs_outcome(
+                planned_intent=working_mem.active_intent or "OPERATIONAL_EXECUTION",
+                actual_outcome="CIRCUIT_BREAKER_TRIPPED",
+                intent_satisfied=False,
+                discrepancy_reason=str(e),
+                session_id=session_id,
+                run_id=run_id
+            )
             return {
                 "run_id": run_id,
                 "session_id": session_id,
@@ -223,19 +239,33 @@ class TriageCoordinatorAgent:
         )
         actions_taken.append({"action": "dispatch_notification", "customer_id": user_id})
 
-        # Append assistant turn to session and save
+        # Append assistant turn to session and save (automatically redacts PII before storage)
         session.turns.append(MessageTurn(role="assistant", content=final_response_text))
         session_manager.save_session(session)
         tiered_memory.clear_working_memory(run_id)
 
         metrics.record_resolution(success=True, hitl=hitl_escalation)
 
+        # Explicit Intent vs Actual Outcome Telemetry Logging
+        resolution_status = "COMPLETED" if not hitl_escalation else "ESCALATED_HITL"
+        intent_satisfied = not hitl_escalation
+        logger.log_intent_vs_outcome(
+            planned_intent=working_mem.active_intent or "GENERAL_INQUIRY",
+            actual_outcome=resolution_status,
+            intent_satisfied=intent_satisfied,
+            discrepancy_reason=None if intent_satisfied else "Resolution exceeded autonomous threshold, requiring HITL supervisor approval",
+            session_id=session_id,
+            run_id=run_id,
+            selected_model=selected_model,
+            complexity_score=routing_decision.complexity_score
+        )
+
         return {
             "run_id": run_id,
             "session_id": session_id,
             "user_id": user_id,
             "active_order_id": order_id,
-            "status": "COMPLETED" if not hitl_escalation else "ESCALATED_HITL",
+            "status": resolution_status,
             "selected_model": selected_model,
             "routing_decision": routing_decision.model_dump(),
             "final_response": final_response_text,

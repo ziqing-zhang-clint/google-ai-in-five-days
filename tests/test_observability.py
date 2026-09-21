@@ -80,3 +80,89 @@ def test_metrics_collector():
     assert summary["circuit_breaker_trips"] == 1
     assert summary["tool_invocations"]["carrier_track"] == 2
     assert summary["tool_invocations"]["payment_refund"] == 1
+
+
+def test_pii_redactor():
+    from nexus_ops.observability.pii_redactor import pii_redactor
+
+    text = "Customer Alice (alice@example.com) with card 4111-2222-3333-4444 and phone 555-123-4567 SSN 000-12-3456"
+    sanitized = pii_redactor.redact(text)
+
+    assert "alice@example.com" not in sanitized
+    assert "[REDACTED_EMAIL]" in sanitized
+    assert "4111-2222-3333-4444" not in sanitized
+    assert "[REDACTED_CARD]" in sanitized
+    assert "555-123-4567" not in sanitized
+    assert "[REDACTED_PHONE]" in sanitized
+    assert "000-12-3456" not in sanitized
+    assert "[REDACTED_SSN]" in sanitized
+
+
+def test_structured_logger_pii_sanitization():
+    formatter = StructuredJSONFormatter()
+    record = logging.LogRecord(
+        name="test_logger",
+        level=logging.INFO,
+        pathname="test.py",
+        lineno=10,
+        msg="Refunding customer bob@corp.com with card 5432-1098-7654-3210",
+        args=(),
+        exc_info=None
+    )
+    formatted = formatter.format(record)
+    parsed = json.loads(formatted)
+
+    assert "bob@corp.com" not in parsed["message"]
+    assert "[REDACTED_EMAIL]" in parsed["message"]
+    assert "5432-1098-7654-3210" not in parsed["message"]
+    assert "[REDACTED_CARD]" in parsed["message"]
+
+
+def test_intent_vs_outcome_logging():
+    formatter = StructuredJSONFormatter()
+    record = logging.LogRecord(
+        name="test_logger",
+        level=logging.INFO,
+        pathname="test.py",
+        lineno=10,
+        msg="Intent vs Actual Outcome Audit: planned='LOGISTICS_INQUIRY' | actual='COMPLETED' | status=SATISFIED",
+        args=(),
+        exc_info=None
+    )
+    record.planned_intent = "LOGISTICS_INQUIRY"
+    record.actual_outcome = "COMPLETED"
+    record.intent_satisfied = True
+    record.discrepancy_reason = "None"
+    record.session_id = "sess-audit-1"
+
+    formatted = formatter.format(record)
+    parsed = json.loads(formatted)
+
+    assert parsed["planned_intent"] == "LOGISTICS_INQUIRY"
+    assert parsed["actual_outcome"] == "COMPLETED"
+    assert parsed["intent_satisfied"] is True
+    assert parsed["discrepancy_reason"] == "None"
+    assert parsed["session_id"] == "sess-audit-1"
+
+
+def test_session_storage_pii_redaction(tmp_path):
+    from nexus_ops.memory.session_manager import SessionManager, SessionState, MessageTurn
+
+    db_file = tmp_path / "test_pii.db"
+    mgr = SessionManager(db_path=str(db_file))
+
+    session = SessionState(session_id="pii-sess-1", user_id="user-1")
+    session.turns.append(
+        MessageTurn(role="user", content="My email is john.doe@secure.org and card is 4111 2222 3333 4444")
+    )
+    mgr.save_session(session)
+
+    # Reload from raw SQLite database and assert values are sanitized before storage
+    reloaded = mgr.get_or_create_session("pii-sess-1", "user-1")
+    stored_content = reloaded.turns[0].content
+
+    assert "john.doe@secure.org" not in stored_content
+    assert "[REDACTED_EMAIL]" in stored_content
+    assert "4111 2222 3333 4444" not in stored_content
+    assert "[REDACTED_CARD]" in stored_content
+
