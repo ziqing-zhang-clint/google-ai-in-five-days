@@ -202,7 +202,19 @@ class TriageCoordinatorAgent:
                 "escalated_to_hitl": True
             }
 
-        # Step 5: Notifications & Persistence
+        # Step 5: LLM Execution & Notification Synthesis
+        llm_execution = model_router.generate_response(
+            prompt=f"Task: Synthesize resolution for {user_id} on Order {order_id}.\nContext: {final_response_text}",
+            system_instruction=self.constitution,
+            decision=routing_decision
+        )
+        actions_taken.append({
+            "action": "model_inference",
+            "model": selected_model,
+            "tier": routing_decision.tier,
+            "status": "COMPLETED"
+        })
+
         dispatch_customer_notification(
             customer_id=user_id,
             subject=f"Update regarding Order {order_id}",

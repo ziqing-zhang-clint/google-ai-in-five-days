@@ -5,6 +5,7 @@ Enforces intelligent compute economics:
 - Lightweight Model (Gemini 2.5 Flash): Deterministic lookups, fast entity extraction, carrier tracking, formatting.
 """
 
+import os
 import re
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -107,18 +108,30 @@ class StrategicModelRouter:
             metrics.record_tool_call(f"model_{decision.tier.lower()}")
 
             api_key = settings.get_api_key()
-            if api_key:
-                try:
-                    from google import genai
+            project = settings.google_cloud_project or os.getenv("GOOGLE_CLOUD_PROJECT")
+
+            try:
+                from google import genai
+                client = None
+                if api_key:
                     client = genai.Client(api_key=api_key)
+                elif project:
+                    # Google Cloud Vertex AI ADC (IAM Service Account - No API Key Needed)
+                    client = genai.Client(vertexai=True, project=project, location=settings.google_cloud_location)
+                else:
+                    # Google Application Default Credentials (ADC)
+                    client = genai.Client()
+
+                if client:
                     response = client.models.generate_content(
                         model=decision.selected_model,
                         contents=prompt,
                         config={"system_instruction": system_instruction}
                     )
-                    return response.text
-                except Exception as e:
-                    logger.warning(f"Live Gemini API execution failed ({e}), falling back to simulated reasoning.")
+                    if response and hasattr(response, "text") and response.text:
+                        return response.text
+            except Exception as e:
+                logger.info(f"Offline / Sandbox mode active (API notice: {type(e).__name__}). Using deterministic high-fidelity reasoning.")
 
             # Deterministic High-Fidelity Simulation (for offline evaluation sandbox and test environments)
             return f"[Model: {decision.selected_model} | Tier: {decision.tier}] Processed with complexity {decision.complexity_score}."

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     # Gemini & Google Cloud Config
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
+    google_cloud_project: Optional[str] = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")
+    google_cloud_location: str = Field(default="us-central1", alias="GOOGLE_CLOUD_LOCATION")
     frontier_model: str = Field(default="gemini-2.5-pro", alias="NEXUS_FRONTIER_MODEL")
     fast_model: str = Field(default="gemini-2.5-flash", alias="NEXUS_FAST_MODEL")
 
